@@ -284,30 +284,6 @@ def _ops_pilot_brief_schema() -> dict[str, Any]:
         },
         "required": ["title", "description", "frequency", "severity"],
     }
-
-
-def _ops_pilot_post_pilot_schema() -> dict[str, Any]:
-    text_field = {"type": "string"}
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "executive_summary": text_field,
-            "decision_detail": text_field,
-            "blocker_summary": text_field,
-            "risks_to_watch": {"type": "array", "items": text_field, "minItems": 1},
-            "next_steps": {"type": "array", "items": text_field, "minItems": 1},
-            "assumptions": {"type": "array", "items": text_field, "minItems": 1},
-        },
-        "required": [
-            "executive_summary",
-            "decision_detail",
-            "blocker_summary",
-            "risks_to_watch",
-            "next_steps",
-            "assumptions",
-        ],
-    }
     kpi = {
         "type": "object",
         "additionalProperties": False,
@@ -365,6 +341,30 @@ def _ops_pilot_post_pilot_schema() -> dict[str, Any]:
             "kpis",
             "risks",
             "rollout_steps",
+            "next_steps",
+            "assumptions",
+        ],
+    }
+
+
+def _ops_pilot_post_pilot_schema() -> dict[str, Any]:
+    text_field = {"type": "string"}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "executive_summary": text_field,
+            "decision_detail": text_field,
+            "blocker_summary": text_field,
+            "risks_to_watch": {"type": "array", "items": text_field, "minItems": 1},
+            "next_steps": {"type": "array", "items": text_field, "minItems": 1},
+            "assumptions": {"type": "array", "items": text_field, "minItems": 1},
+        },
+        "required": [
+            "executive_summary",
+            "decision_detail",
+            "blocker_summary",
+            "risks_to_watch",
             "next_steps",
             "assumptions",
         ],
