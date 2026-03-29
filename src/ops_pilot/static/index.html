@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ops Pilot</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Ops Pilot</p>
+        <h1>Turn messy workflow notes into a pilot-ready AI business case.</h1>
+        <p class="lede">
+          Describe how a small team works today, attach notes or metrics, and the agent will draft
+          a pilot brief with ROI, risks, KPIs, and rollout steps.
+        </p>
+      </div>
+      <div class="hero-panel">
+        <div class="metric-card">
+          <span class="metric-label">Best fit</span>
+          <strong>Student orgs</strong>
+          <p>Clubs, labs, campus teams, side projects</p>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Output</span>
+          <strong>1-page brief</strong>
+          <p>Recommendation, ROI, KPI plan, risks</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <form id="planner-form" class="panel form-panel">
+        <div class="section-head">
+          <h2>Workflow Snapshot</h2>
+          <button id="load-sample" type="button" class="ghost-button">Load sample</button>
+        </div>
+
+        <label>
+          Workflow title
+          <input id="title" name="title" placeholder="Student org event follow-up" required>
+        </label>
+
+        <label>
+          Team type
+          <input id="team_type" name="team_type" placeholder="Student organization">
+        </label>
+
+        <label>
+          Workflow goal
+          <textarea id="workflow_goal" name="workflow_goal" rows="4" placeholder="What is the workflow trying to accomplish?" required></textarea>
+        </label>
+
+        <label>
+          Current process
+          <textarea id="current_process" name="current_process" rows="5" placeholder="How does the team handle this today?"></textarea>
+        </label>
+
+        <label>
+          Desired outcome
+          <textarea id="desired_outcome" name="desired_outcome" rows="3" placeholder="What would a successful pilot improve?"></textarea>
+        </label>
+
+        <div class="grid two-up">
+          <label>
+            Tasks per week
+            <input id="task_volume_per_week" name="task_volume_per_week" type="number" min="0" step="1" placeholder="22">
+          </label>
+          <label>
+            Manual hours per week
+            <input id="manual_hours_per_week" name="manual_hours_per_week" type="number" min="0" step="0.1" placeholder="6.5">
+          </label>
+          <label>
+            Average cycle time (hours)
+            <input id="average_cycle_time_hours" name="average_cycle_time_hours" type="number" min="0" step="0.1" placeholder="48">
+          </label>
+          <label>
+            Error or rework rate (%)
+            <input id="average_error_rate_pct" name="average_error_rate_pct" type="number" min="0" step="0.1" placeholder="15">
+          </label>
+          <label>
+            Blended cost per hour
+            <input id="cost_per_hour" name="cost_per_hour" type="number" min="0" step="0.1" value="25">
+          </label>
+        </div>
+
+        <label>
+          Attach notes or CSV metrics
+          <input id="documents" name="documents" type="file" multiple accept=".txt,.md,.csv,.json">
+        </label>
+
+        <p class="helper">The agent reads `.txt`, `.md`, `.csv`, and `.json` files directly in the browser and sends their contents for analysis.</p>
+
+        <button type="submit" class="primary-button">Draft pilot brief</button>
+      </form>
+
+      <section class="panel results-panel">
+        <div class="section-head">
+          <h2>Agent Response</h2>
+          <span id="status-pill" class="status-pill muted">Waiting for input</span>
+        </div>
+
+        <div id="summary-grid" class="summary-grid hidden"></div>
+
+        <div class="transcript">
+          <h3>Conversation</h3>
+          <div id="conversation" class="conversation">
+            <article class="message agent">
+              <p>I’m ready to evaluate a workflow and tell you whether it is worth piloting for AI automation.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="brief-output">
+          <h3>Pilot Brief</h3>
+          <pre id="brief-markdown">No brief generated yet.</pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
