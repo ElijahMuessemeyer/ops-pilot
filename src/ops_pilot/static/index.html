@@ -11,94 +11,208 @@
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">Ops Pilot</p>
-        <h1>Turn messy workflow notes into a pilot-ready AI business case.</h1>
+        <h1>Plan the pilot, then measure whether it actually worked.</h1>
         <p class="lede">
-          Describe how a small team works today, attach notes or metrics, and the agent will draft
-          a pilot brief with ROI, risks, KPIs, and rollout steps.
+          Use the first workflow to build an AI pilot brief, then switch to post-pilot review mode
+          to compare projected ROI and KPI targets against real execution results.
         </p>
       </div>
       <div class="hero-panel">
         <div class="metric-card">
-          <span class="metric-label">Best fit</span>
-          <strong>Student orgs</strong>
-          <p>Clubs, labs, campus teams, side projects</p>
+          <span class="metric-label">Mode one</span>
+          <strong>Pilot planning</strong>
+          <p>Problem statement, ROI, KPI plan, risks, rollout steps</p>
         </div>
         <div class="metric-card">
-          <span class="metric-label">Output</span>
-          <strong>1-page brief</strong>
-          <p>Recommendation, ROI, KPI plan, risks</p>
+          <span class="metric-label">Mode two</span>
+          <strong>Post-pilot review</strong>
+          <p>Scale, revise, or stop based on measured pilot outcomes</p>
         </div>
       </div>
     </section>
 
     <section class="workspace">
-      <form id="planner-form" class="panel form-panel">
-        <div class="section-head">
-          <h2>Workflow Snapshot</h2>
-          <button id="load-sample" type="button" class="ghost-button">Load sample</button>
+      <section class="panel form-shell">
+        <div class="mode-toggle" role="tablist" aria-label="Ops Pilot mode">
+          <button id="mode-plan" class="mode-button active" type="button" data-mode="plan">Pilot Planning</button>
+          <button id="mode-review" class="mode-button" type="button" data-mode="review">Post-Pilot Review</button>
         </div>
 
-        <label>
-          Workflow title
-          <input id="title" name="title" placeholder="Student org event follow-up" required>
-        </label>
+        <form id="planner-form" class="workflow-form" data-mode-panel="plan">
+          <div class="section-head">
+            <h2>Workflow Snapshot</h2>
+            <button id="load-sample" type="button" class="ghost-button">Load sample</button>
+          </div>
 
-        <label>
-          Team type
-          <input id="team_type" name="team_type" placeholder="Student organization">
-        </label>
-
-        <label>
-          Workflow goal
-          <textarea id="workflow_goal" name="workflow_goal" rows="4" placeholder="What is the workflow trying to accomplish?" required></textarea>
-        </label>
-
-        <label>
-          Current process
-          <textarea id="current_process" name="current_process" rows="5" placeholder="How does the team handle this today?"></textarea>
-        </label>
-
-        <label>
-          Desired outcome
-          <textarea id="desired_outcome" name="desired_outcome" rows="3" placeholder="What would a successful pilot improve?"></textarea>
-        </label>
-
-        <div class="grid two-up">
           <label>
-            Tasks per week
-            <input id="task_volume_per_week" name="task_volume_per_week" type="number" min="0" step="1" placeholder="22">
+            Workflow title
+            <input id="title" name="title" placeholder="Student org event follow-up" required>
           </label>
-          <label>
-            Manual hours per week
-            <input id="manual_hours_per_week" name="manual_hours_per_week" type="number" min="0" step="0.1" placeholder="6.5">
-          </label>
-          <label>
-            Average cycle time (hours)
-            <input id="average_cycle_time_hours" name="average_cycle_time_hours" type="number" min="0" step="0.1" placeholder="48">
-          </label>
-          <label>
-            Error or rework rate (%)
-            <input id="average_error_rate_pct" name="average_error_rate_pct" type="number" min="0" step="0.1" placeholder="15">
-          </label>
-          <label>
-            Blended cost per hour
-            <input id="cost_per_hour" name="cost_per_hour" type="number" min="0" step="0.1" value="25">
-          </label>
-        </div>
 
-        <label>
-          Attach notes or CSV metrics
-          <input id="documents" name="documents" type="file" multiple accept=".txt,.md,.csv,.json">
-        </label>
+          <label>
+            Team type
+            <input id="team_type" name="team_type" placeholder="Student organization">
+          </label>
 
-        <p class="helper">The agent reads `.txt`, `.md`, `.csv`, and `.json` files directly in the browser and sends their contents for analysis.</p>
+          <label>
+            Workflow goal
+            <textarea id="workflow_goal" name="workflow_goal" rows="4" placeholder="What is the workflow trying to accomplish?" required></textarea>
+          </label>
 
-        <button type="submit" class="primary-button">Draft pilot brief</button>
-      </form>
+          <label>
+            Current process
+            <textarea id="current_process" name="current_process" rows="5" placeholder="How does the team handle this today?"></textarea>
+          </label>
+
+          <label>
+            Desired outcome
+            <textarea id="desired_outcome" name="desired_outcome" rows="3" placeholder="What would a successful pilot improve?"></textarea>
+          </label>
+
+          <div class="grid two-up">
+            <label>
+              Tasks per week
+              <input id="task_volume_per_week" name="task_volume_per_week" type="number" min="0" step="1" placeholder="22">
+            </label>
+            <label>
+              Manual hours per week
+              <input id="manual_hours_per_week" name="manual_hours_per_week" type="number" min="0" step="0.1" placeholder="6.5">
+            </label>
+            <label>
+              Average cycle time (hours)
+              <input id="average_cycle_time_hours" name="average_cycle_time_hours" type="number" min="0" step="0.1" placeholder="48">
+            </label>
+            <label>
+              Error or rework rate (%)
+              <input id="average_error_rate_pct" name="average_error_rate_pct" type="number" min="0" step="0.1" placeholder="15">
+            </label>
+            <label>
+              Blended cost per hour
+              <input id="cost_per_hour" name="cost_per_hour" type="number" min="0" step="0.1" value="25">
+            </label>
+          </div>
+
+          <label>
+            Attach notes or CSV metrics
+            <input id="documents" name="documents" type="file" multiple accept=".txt,.md,.csv,.json">
+          </label>
+
+          <p class="helper">The agent reads `.txt`, `.md`, `.csv`, and `.json` files directly in the browser and uses them as workflow evidence.</p>
+
+          <button type="submit" class="primary-button">Draft pilot brief</button>
+        </form>
+
+        <form id="review-form" class="workflow-form hidden" data-mode-panel="review">
+          <div class="section-head">
+            <h2>Post-Pilot Review</h2>
+            <button id="load-review-sample" type="button" class="ghost-button">Load review sample</button>
+          </div>
+
+          <label>
+            Workflow title
+            <input id="review_title" name="review_title" placeholder="Student org event follow-up" required>
+          </label>
+
+          <label>
+            Team type
+            <input id="review_team_type" name="review_team_type" placeholder="Student organization">
+          </label>
+
+          <label>
+            Workflow goal
+            <textarea id="review_workflow_goal" name="review_workflow_goal" rows="3" placeholder="What was the pilot trying to improve?" required></textarea>
+          </label>
+
+          <label>
+            Current process before the pilot
+            <textarea id="review_current_process" name="review_current_process" rows="4" placeholder="How did the workflow run before the pilot?"></textarea>
+          </label>
+
+          <label>
+            Desired outcome
+            <textarea id="review_desired_outcome" name="review_desired_outcome" rows="2" placeholder="What outcome was the pilot expected to deliver?"></textarea>
+          </label>
+
+          <div class="subsection-head">
+            <h3>Baseline Metrics</h3>
+          </div>
+          <div class="grid two-up">
+            <label>
+              Baseline tasks per week
+              <input id="review_task_volume_per_week" name="review_task_volume_per_week" type="number" min="0" step="1" placeholder="22">
+            </label>
+            <label>
+              Baseline manual hours / week
+              <input id="review_manual_hours_per_week" name="review_manual_hours_per_week" type="number" min="0" step="0.1" placeholder="6.5">
+            </label>
+            <label>
+              Baseline cycle time (hours)
+              <input id="review_average_cycle_time_hours" name="review_average_cycle_time_hours" type="number" min="0" step="0.1" placeholder="48">
+            </label>
+            <label>
+              Baseline error or rework rate (%)
+              <input id="review_average_error_rate_pct" name="review_average_error_rate_pct" type="number" min="0" step="0.1" placeholder="15">
+            </label>
+            <label>
+              Blended cost per hour
+              <input id="review_cost_per_hour" name="review_cost_per_hour" type="number" min="0" step="0.1" value="25">
+            </label>
+          </div>
+
+          <div class="subsection-head">
+            <h3>Measured Pilot Results</h3>
+          </div>
+          <div class="grid two-up">
+            <label>
+              Pilot duration (weeks)
+              <input id="pilot_duration_weeks" name="pilot_duration_weeks" type="number" min="0" step="1" placeholder="4">
+            </label>
+            <label>
+              Actual manual hours / week
+              <input id="actual_manual_hours_per_week" name="actual_manual_hours_per_week" type="number" min="0" step="0.1" placeholder="3.8">
+            </label>
+            <label>
+              Actual cycle time (hours)
+              <input id="actual_cycle_time_hours" name="actual_cycle_time_hours" type="number" min="0" step="0.1" placeholder="30">
+            </label>
+            <label>
+              Actual error or rework rate (%)
+              <input id="actual_error_rate_pct" name="actual_error_rate_pct" type="number" min="0" step="0.1" placeholder="8">
+            </label>
+            <label>
+              On-time completion (%)
+              <input id="actual_on_time_completion_pct" name="actual_on_time_completion_pct" type="number" min="0" step="0.1" placeholder="96">
+            </label>
+            <label>
+              Adoption rate (%)
+              <input id="adoption_rate_pct" name="adoption_rate_pct" type="number" min="0" step="0.1" placeholder="88">
+            </label>
+          </div>
+
+          <label>
+            Logged blockers
+            <textarea id="review_blockers" name="review_blockers" rows="3" placeholder="One blocker per line"></textarea>
+          </label>
+
+          <label>
+            Review notes
+            <textarea id="review_notes" name="review_notes" rows="3" placeholder="What happened during the pilot?"></textarea>
+          </label>
+
+          <label>
+            Attach pilot notes or actuals
+            <input id="review_documents" name="review_documents" type="file" multiple accept=".txt,.md,.csv,.json">
+          </label>
+
+          <p class="helper">Use this mode after a pilot has run. The agent will compare projected KPI targets against measured actuals and recommend whether to scale, revise, or stop.</p>
+
+          <button type="submit" class="primary-button">Review pilot results</button>
+        </form>
+      </section>
 
       <section class="panel results-panel">
         <div class="section-head">
-          <h2>Agent Response</h2>
+          <h2 id="results-title">Agent Response</h2>
           <span id="status-pill" class="status-pill muted">Waiting for input</span>
         </div>
 
@@ -108,14 +222,14 @@
           <h3>Conversation</h3>
           <div id="conversation" class="conversation">
             <article class="message agent">
-              <p>I’m ready to evaluate a workflow and tell you whether it is worth piloting for AI automation.</p>
+              <p>I’m ready to plan a pilot or review one after execution.</p>
             </article>
           </div>
         </div>
 
         <div class="brief-output">
-          <h3>Pilot Brief</h3>
-          <pre id="brief-markdown">No brief generated yet.</pre>
+          <h3 id="artifact-title">Analysis Output</h3>
+          <pre id="brief-markdown">No output generated yet.</pre>
         </div>
       </section>
     </section>

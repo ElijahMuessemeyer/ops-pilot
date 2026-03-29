@@ -7,7 +7,8 @@ from typing import Any, Protocol
 from urllib import error, request
 
 from .analysis import AnalysisSnapshot
-from .models import KPI, PainPoint, PilotBrief, RiskItem, RolloutStep, WorkflowCase
+from .models import KPI, PainPoint, PilotActuals, PilotBrief, PostPilotReview, RiskItem, RolloutStep, WorkflowCase
+from .post_pilot import PostPilotSnapshot
 from .utils import normalize_whitespace
 
 
@@ -75,6 +76,16 @@ class LLMBriefDraft:
     kpis: list[KPI]
     risks: list[RiskItem]
     rollout_steps: list[RolloutStep]
+    next_steps: list[str]
+    assumptions: list[str]
+
+
+@dataclass(slots=True)
+class LLMPostPilotDraft:
+    executive_summary: str
+    decision_detail: str
+    blocker_summary: str
+    risks_to_watch: list[str]
     next_steps: list[str]
     assumptions: list[str]
 
@@ -220,6 +231,45 @@ class OpsPilotLLMPlanner:
         draft = _parse_brief_draft(result.payload)
         return _merge_brief(case, snapshot, draft), result.request_id
 
+    def generate_post_pilot_review(
+        self,
+        case: WorkflowCase,
+        actuals: PilotActuals,
+        snapshot: PostPilotSnapshot,
+    ) -> tuple[PostPilotReview, str | None]:
+        instructions = (
+            "You are Ops Pilot, an AI transformation advisor reviewing a completed pilot for a small team. "
+            "Write an executive-ready post-pilot assessment grounded in the provided workflow, actual measurements, and deterministic evaluation. "
+            "Do not change the final decision label or numeric KPI comparisons. "
+            "Return only valid JSON matching the schema."
+        )
+        user_input = json.dumps(
+            {
+                "workflow_case": case.to_dict(),
+                "pilot_actuals": actuals.to_dict(),
+                "post_pilot_snapshot": snapshot.to_dict(),
+                "task": {
+                    "goal": "Refine the deterministic post-pilot review into a stakeholder-ready assessment.",
+                    "deterministic_final_decision": snapshot.review.final_decision,
+                    "rules": [
+                        "decision_detail should not repeat the final decision label",
+                        "keep the narrative tied to measured results and logged blockers",
+                        "do not invent new KPI values or ROI numbers",
+                        "keep next steps focused on scale, revise, or stop decisions",
+                    ],
+                },
+            },
+            indent=2,
+        )
+        result = self.client.create_structured_output(
+            instructions=instructions,
+            user_input=user_input,
+            schema_name="ops_pilot_post_pilot_review",
+            schema=_ops_pilot_post_pilot_schema(),
+        )
+        draft = _parse_post_pilot_draft(result.payload)
+        return _merge_post_pilot_review(snapshot.review, draft), result.request_id
+
 
 def _ops_pilot_brief_schema() -> dict[str, Any]:
     text_field = {"type": "string"}
@@ -233,6 +283,30 @@ def _ops_pilot_brief_schema() -> dict[str, Any]:
             "severity": {"type": "string", "enum": ["low", "medium", "high"]},
         },
         "required": ["title", "description", "frequency", "severity"],
+    }
+
+
+def _ops_pilot_post_pilot_schema() -> dict[str, Any]:
+    text_field = {"type": "string"}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "executive_summary": text_field,
+            "decision_detail": text_field,
+            "blocker_summary": text_field,
+            "risks_to_watch": {"type": "array", "items": text_field, "minItems": 1},
+            "next_steps": {"type": "array", "items": text_field, "minItems": 1},
+            "assumptions": {"type": "array", "items": text_field, "minItems": 1},
+        },
+        "required": [
+            "executive_summary",
+            "decision_detail",
+            "blocker_summary",
+            "risks_to_watch",
+            "next_steps",
+            "assumptions",
+        ],
     }
     kpi = {
         "type": "object",
@@ -346,6 +420,20 @@ def _parse_brief_draft(payload: dict[str, Any]) -> LLMBriefDraft:
     )
 
 
+def _parse_post_pilot_draft(payload: dict[str, Any]) -> LLMPostPilotDraft:
+    if not isinstance(payload, dict):
+        raise LLMError("Structured output payload must be a JSON object.")
+
+    return LLMPostPilotDraft(
+        executive_summary=_require_text(payload, "executive_summary"),
+        decision_detail=_require_text(payload, "decision_detail"),
+        blocker_summary=_require_text(payload, "blocker_summary"),
+        risks_to_watch=[normalize_whitespace(item) for item in _require_string_list(payload, "risks_to_watch")],
+        next_steps=[normalize_whitespace(item) for item in _require_string_list(payload, "next_steps")],
+        assumptions=[normalize_whitespace(item) for item in _require_string_list(payload, "assumptions")],
+    )
+
+
 def _merge_brief(case: WorkflowCase, snapshot: AnalysisSnapshot, draft: LLMBriefDraft) -> PilotBrief:
     deterministic = snapshot.brief
     detail = _strip_recommendation_prefix(
@@ -373,6 +461,32 @@ def _merge_brief(case: WorkflowCase, snapshot: AnalysisSnapshot, draft: LLMBrief
         recommendation=recommendation,
         next_steps=next_steps,
         assumptions=assumptions,
+    )
+
+
+def _merge_post_pilot_review(
+    deterministic: PostPilotReview,
+    draft: LLMPostPilotDraft,
+) -> PostPilotReview:
+    decision_rationale = _strip_recommendation_prefix(draft.decision_detail, deterministic.final_decision)
+    return PostPilotReview(
+        title=deterministic.title,
+        executive_summary=draft.executive_summary or deterministic.executive_summary,
+        final_decision=deterministic.final_decision,
+        decision_rationale=decision_rationale or deterministic.decision_rationale,
+        kpi_results=deterministic.kpi_results,
+        evidence=deterministic.evidence,
+        projected_hours_saved_per_week=deterministic.projected_hours_saved_per_week,
+        actual_hours_saved_per_week=deterministic.actual_hours_saved_per_week,
+        projected_annual_cost_savings=deterministic.projected_annual_cost_savings,
+        actual_annualized_cost_savings=deterministic.actual_annualized_cost_savings,
+        projected_cycle_time_reduction_pct=deterministic.projected_cycle_time_reduction_pct,
+        actual_cycle_time_reduction_pct=deterministic.actual_cycle_time_reduction_pct,
+        kpi_attainment_pct=deterministic.kpi_attainment_pct,
+        blocker_summary=draft.blocker_summary or deterministic.blocker_summary,
+        risks_to_watch=draft.risks_to_watch[:4] or deterministic.risks_to_watch,
+        next_steps=draft.next_steps[:4] or deterministic.next_steps,
+        assumptions=list(dict.fromkeys([*deterministic.assumptions, *draft.assumptions])),
     )
 
 

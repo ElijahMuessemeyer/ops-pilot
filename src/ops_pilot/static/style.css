@@ -117,6 +117,11 @@ body {
   padding: 24px;
 }
 
+.form-shell {
+  display: grid;
+  gap: 18px;
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -126,10 +131,45 @@ body {
 }
 
 .section-head h2,
+.subsection-head h3,
 .transcript h3,
 .brief-output h3 {
   margin: 0;
   font-size: 1.1rem;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid var(--line);
+  align-self: start;
+}
+
+.mode-button {
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.mode-button.active {
+  background: linear-gradient(135deg, rgba(216, 111, 56, 0.18), rgba(228, 156, 81, 0.24));
+  color: var(--accent-deep);
+}
+
+.workflow-form {
+  display: grid;
+  gap: 16px;
+}
+
+.subsection-head {
+  margin-top: 8px;
 }
 
 form {

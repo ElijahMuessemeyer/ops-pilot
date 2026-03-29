@@ -1,12 +1,13 @@
 # Ops Pilot
 
-Ops Pilot is an LLM-backed AI pilot planner for small teams. It ingests workflow notes and lightweight metrics, retrieves supporting evidence, scores business value, and generates a one-page pilot brief with ROI, KPIs, risks, rollout steps, and a recommendation on whether the workflow is worth automating.
+Ops Pilot is an LLM-backed AI pilot planner for small teams. It ingests workflow notes and lightweight metrics, retrieves supporting evidence, scores business value, and generates a one-page pilot brief with ROI, KPIs, risks, rollout steps, and a recommendation on whether the workflow is worth automating. It also supports a post-pilot review mode that compares projected KPI targets against measured pilot results and recommends whether to scale, revise, or stop.
 
 ## Highlights
 
 - Retrieval-backed workflow analysis grounded in uploaded notes and CSV metrics
 - Deterministic business-case layer for ROI, KPI, and risk logic
 - OpenAI Responses API integration with structured outputs and schema validation
+- Post-pilot KPI measurement loop for scale / revise / stop decisions
 - `auto`, `llm`, and `deterministic` runtime modes
 - Safe fallback when the LLM provider fails
 - Local browser UI, HTTP API, seeded demo data, and automated tests
@@ -21,6 +22,7 @@ Ops Pilot is an LLM-backed AI pilot planner for small teams. It ingests workflow
 - KPI plan
 - risk and mitigation list
 - rollout steps for a small pilot
+- post-pilot assessment with KPI attainment and scale decision
 
 ## Architecture
 
@@ -29,12 +31,15 @@ flowchart LR
     A["Workflow input<br/>notes, metrics, direct form fields"] --> B["Parsing and chunking"]
     B --> C["Evidence retrieval"]
     C --> D["Deterministic analysis<br/>metrics, score, ROI, KPIs, risks"]
-    D --> E{"LLM available?"}
-    E -- No --> F["Deterministic brief"]
-    E -- Yes --> G["OpenAI Responses API<br/>structured JSON output"]
-    G --> H["Schema validation and merge"]
-    H --> I["Pilot brief + runtime metadata"]
-    F --> I
+    D --> E["Pilot brief"]
+    E --> F["Post-pilot actuals<br/>hours, cycle time, rework, adoption"]
+    F --> G["Deterministic KPI review<br/>planned vs actual, scale / revise / stop"]
+    G --> H{"LLM available?"}
+    H -- No --> I["Deterministic artifact"]
+    H -- Yes --> J["OpenAI Responses API<br/>structured JSON output"]
+    J --> K["Schema validation and merge"]
+    K --> L["Brief or review + runtime metadata"]
+    I --> L
 ```
 
 More detail: [docs/architecture.md](docs/architecture.md)
@@ -42,6 +47,7 @@ More detail: [docs/architecture.md](docs/architecture.md)
 ## Example artifacts
 
 - Sample brief: [docs/sample_brief.md](docs/sample_brief.md)
+- Sample review: [docs/sample_review.md](docs/sample_review.md)
 - Evaluation notes: [docs/evaluation.md](docs/evaluation.md)
 
 ## Quickstart
@@ -75,7 +81,13 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 make demo
 ```
 
-### 5. Run the test suite
+### 5. Run the post-pilot review demo in the terminal
+
+```bash
+make review-demo
+```
+
+### 6. Run the test suite
 
 ```bash
 make test
@@ -104,6 +116,7 @@ Mode behavior:
 ## Design decisions
 
 - The numeric business case is deterministic on purpose. The LLM improves narrative quality, but it does not own ROI math or recommendation scoring.
+- The post-pilot review uses the same deterministic KPI targets from the planning phase so scale decisions stay tied to the original business case.
 - The LLM path uses structured outputs so the brief stays inside a known schema.
 - The agent recommends scoped pilots with a human reviewer instead of taking autonomous workflow actions.
 - Runtime metadata is returned with each response so failures, fallbacks, and provider behavior are visible.
@@ -111,10 +124,11 @@ Mode behavior:
 ## Repository guide
 
 - [src/ops_pilot/analysis.py](src/ops_pilot/analysis.py): deterministic workflow analysis
+- [src/ops_pilot/post_pilot.py](src/ops_pilot/post_pilot.py): post-pilot KPI review and scale decision logic
 - [src/ops_pilot/llm.py](src/ops_pilot/llm.py): OpenAI structured-output client and merge logic
 - [src/ops_pilot/service.py](src/ops_pilot/service.py): agent orchestration and runtime handling
 - [src/ops_pilot/server.py](src/ops_pilot/server.py): local web server and API
-- [tests/test_agent.py](tests/test_agent.py): deterministic and mocked LLM-path tests
+- [tests/test_agent.py](tests/test_agent.py): deterministic and mocked LLM-path tests for planning and post-pilot review
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): GitHub Actions CI
 
 ## License

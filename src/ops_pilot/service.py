@@ -3,11 +3,12 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .analysis import build_analysis_snapshot
-from .briefing import brief_to_markdown
+from .briefing import brief_to_markdown, post_pilot_review_to_markdown
 from .config import AgentConfig
 from .llm import LLMError, OpenAIResponsesClient, OpsPilotLLMPlanner
-from .models import AgentResponse, AgentRuntime, SourceDocument, WorkflowCase
+from .models import AgentResponse, AgentRuntime, PilotActuals, PostPilotResponse, SourceDocument, WorkflowCase
 from .parsing import chunk_document
+from .post_pilot import build_post_pilot_snapshot
 from .retrieval import SimpleRetriever
 
 
@@ -23,13 +24,7 @@ class OpsPilotAgent:
 
     def analyze(self, case: WorkflowCase) -> AgentResponse:
         trace_id = uuid4().hex[:12]
-        chunks = []
-        for document in case.source_documents:
-            chunks.extend(chunk_document(document))
-
-        if not chunks and case.combined_text():
-            chunks = chunk_document(SourceDocument(name="workflow_input.txt", kind="text", content=case.combined_text()))
-
+        chunks = self._build_chunks(case.source_documents, fallback_text=case.combined_text())
         retriever = SimpleRetriever(chunks)
         snapshot = build_analysis_snapshot(case, retriever)
         warnings = self._preflight_warnings()
@@ -68,6 +63,61 @@ class OpsPilotAgent:
 
         return self._build_response(
             brief=llm_brief,
+            clarifying_questions=snapshot.clarifying_questions,
+            runtime=AgentRuntime(
+                trace_id=trace_id,
+                mode="llm",
+                provider=self.config.provider,
+                model=self.config.model,
+                request_id=request_id,
+                warnings=warnings,
+            ),
+        )
+
+    def review_pilot(self, case: WorkflowCase, actuals: PilotActuals) -> PostPilotResponse:
+        trace_id = uuid4().hex[:12]
+        chunks = self._build_chunks(
+            [*case.source_documents, *actuals.source_documents],
+            fallback_text="\n\n".join(part for part in [case.combined_text(), actuals.combined_text()] if part).strip(),
+        )
+        retriever = SimpleRetriever(chunks)
+        snapshot = build_post_pilot_snapshot(case, actuals, retriever)
+        warnings = self._preflight_warnings()
+
+        if self.llm_planner is None:
+            return self._build_post_pilot_response(
+                review=snapshot.review,
+                clarifying_questions=snapshot.clarifying_questions,
+                runtime=AgentRuntime(
+                    trace_id=trace_id,
+                    mode="deterministic",
+                    provider=self.config.provider if self.config.wants_llm() else None,
+                    model=self.config.model if self.config.wants_llm() else None,
+                    warnings=warnings,
+                ),
+            )
+
+        try:
+            llm_review, request_id = self.llm_planner.generate_post_pilot_review(case, actuals, snapshot)
+        except LLMError as error:
+            if self.config.llm_required():
+                raise
+            return self._build_post_pilot_response(
+                review=snapshot.review,
+                clarifying_questions=snapshot.clarifying_questions,
+                runtime=AgentRuntime(
+                    trace_id=trace_id,
+                    mode="deterministic",
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    request_id=None,
+                    used_fallback=True,
+                    warnings=[*warnings, str(error), "Fell back to the deterministic post-pilot review."],
+                ),
+            )
+
+        return self._build_post_pilot_response(
+            review=llm_review,
             clarifying_questions=snapshot.clarifying_questions,
             runtime=AgentRuntime(
                 trace_id=trace_id,
@@ -131,3 +181,25 @@ class OpsPilotAgent:
             clarifying_questions=clarifying_questions,
             runtime=runtime,
         )
+
+    def _build_post_pilot_response(
+        self,
+        *,
+        review,
+        clarifying_questions,
+        runtime: AgentRuntime,
+    ) -> PostPilotResponse:
+        return PostPilotResponse(
+            review=review,
+            markdown=post_pilot_review_to_markdown(review),
+            clarifying_questions=clarifying_questions,
+            runtime=runtime,
+        )
+
+    def _build_chunks(self, documents, *, fallback_text: str) -> list:
+        chunks = []
+        for document in documents:
+            chunks.extend(chunk_document(document))
+        if not chunks and fallback_text:
+            chunks = chunk_document(SourceDocument(name="workflow_input.txt", kind="text", content=fallback_text))
+        return chunks

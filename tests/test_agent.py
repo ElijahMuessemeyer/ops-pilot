@@ -12,7 +12,7 @@ if str(SRC) not in sys.path:
 
 from ops_pilot.config import AgentConfig
 from ops_pilot.llm import OpenAIResponsesClient, OpsPilotLLMPlanner, TransportResponse
-from ops_pilot.models import SourceDocument, WorkflowCase
+from ops_pilot.models import PilotActuals, SourceDocument, WorkflowCase
 from ops_pilot.parsing import load_documents
 from ops_pilot.service import OpsPilotAgent
 
@@ -52,6 +52,19 @@ class AgentTests(unittest.TestCase):
                     ROOT / "data" / "examples" / "club_metrics.csv",
                 ]
             ),
+        )
+        self.seed_actuals = PilotActuals(
+            pilot_duration_weeks=4,
+            actual_manual_hours_per_week=3.8,
+            actual_cycle_time_hours=30,
+            actual_error_rate_pct=8,
+            actual_on_time_completion_pct=96,
+            adoption_rate_pct=88,
+            blockers=[
+                "Sponsor outreach still needed manual approval on edge cases.",
+                "One volunteer report format was inconsistent in week two.",
+            ],
+            notes="The pilot reduced recap drafting time and improved follow-up reliability after the second week.",
         )
 
     def test_agent_generates_strong_recommendation_for_seeded_case(self) -> None:
@@ -100,6 +113,26 @@ class AgentTests(unittest.TestCase):
 
         risk_names = {item.name for item in response.brief.risks}
         self.assertIn("Sensitive data exposure", risk_names)
+
+    def test_post_pilot_review_recommends_scaling_when_results_meet_targets(self) -> None:
+        response = self.agent.review_pilot(self.seed_case, self.seed_actuals)
+
+        self.assertEqual(response.review.final_decision, "Scale")
+        self.assertGreaterEqual(response.review.kpi_attainment_pct, 75)
+        self.assertIn("## Final Decision", response.markdown)
+        self.assertEqual(response.runtime.mode, "deterministic")
+
+    def test_post_pilot_review_asks_for_missing_actuals_when_measurement_is_thin(self) -> None:
+        actuals = PilotActuals(notes="The team feels better about the workflow, but formal metrics were not tracked.")
+
+        response = self.agent.review_pilot(self.seed_case, actuals)
+
+        fields = {item.field for item in response.clarifying_questions}
+        self.assertIn("actual_manual_hours_per_week", fields)
+        self.assertIn("actual_cycle_time_hours", fields)
+        self.assertIn("actual_error_rate_pct", fields)
+        self.assertIn("actual_on_time_completion_pct", fields)
+        self.assertEqual(response.review.final_decision, "Extend measurement before scaling")
 
     def test_agent_uses_llm_pipeline_when_configured(self) -> None:
         llm_payload = {
@@ -210,6 +243,70 @@ class AgentTests(unittest.TestCase):
         self.assertIn("LLM-backed planning copilot", response.brief.proposed_solution)
         self.assertEqual(transport.requests[0]["payload"]["text"]["format"]["type"], "json_schema")
         self.assertIn("Pilot now.", response.brief.recommendation)
+
+    def test_post_pilot_review_uses_llm_pipeline_when_configured(self) -> None:
+        llm_payload = {
+            "executive_summary": "The pilot delivered enough measured value to justify scaling, with the strongest evidence in labor savings and turnaround time.",
+            "decision_detail": "Scale to one adjacent workflow slice while keeping human approval on exceptions.",
+            "blocker_summary": "A few edge-case approvals remained manual, but no blocker was large enough to offset the KPI gains.",
+            "risks_to_watch": [
+                "Adoption should still be monitored as the pilot expands to adjacent workflows.",
+            ],
+            "next_steps": [
+                "Expand to one adjacent workflow slice and keep the same KPI scorecard.",
+                "Document a standard operating procedure for weekly KPI review.",
+            ],
+            "assumptions": [
+                "The measured results are representative of the next rollout phase.",
+            ],
+        }
+        transport = FakeTransport(
+            [
+                TransportResponse(
+                    status=200,
+                    headers={"x-request-id": "req_review_123"},
+                    body=json.dumps(
+                        {
+                            "id": "resp_review_123",
+                            "model": "gpt-4.1-mini",
+                            "output": [
+                                {
+                                    "type": "message",
+                                    "content": [
+                                        {
+                                            "type": "output_text",
+                                            "text": json.dumps(llm_payload),
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ).encode("utf-8"),
+                )
+            ]
+        )
+        config = AgentConfig(
+            mode="llm",
+            provider="openai",
+            api_key="test-key",
+            model="gpt-4.1-mini",
+            base_url="https://example.com/v1",
+        )
+        client = OpenAIResponsesClient(
+            api_key=config.api_key or "",
+            model=config.model,
+            base_url=config.base_url,
+            transport=transport,
+        )
+        agent = OpsPilotAgent(config=config, llm_planner=OpsPilotLLMPlanner(client))
+
+        response = agent.review_pilot(self.seed_case, self.seed_actuals)
+
+        self.assertEqual(response.runtime.mode, "llm")
+        self.assertEqual(response.runtime.request_id, "req_review_123")
+        self.assertEqual(response.review.final_decision, "Scale")
+        self.assertIn("justify scaling", response.review.executive_summary)
+        self.assertEqual(transport.requests[0]["payload"]["text"]["format"]["name"], "ops_pilot_post_pilot_review")
 
     def test_agent_falls_back_when_llm_request_fails_in_auto_mode(self) -> None:
         transport = FakeTransport(

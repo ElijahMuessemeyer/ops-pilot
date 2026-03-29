@@ -75,6 +75,44 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(result["brief"]["opportunity_score"]["recommendation"], "Pilot now")
         self.assertIn("markdown", result)
 
+    def test_review_pilot_endpoint_returns_assessment(self) -> None:
+        payload = {
+            "workflow": {
+                "title": "Student org event follow-up",
+                "team_type": "Student organization",
+                "workflow_goal": "Coordinate sponsor follow-up, volunteer recap, and next-step assignments after each weekly event planning meeting.",
+                "current_process": "The president and operations lead review notes, rewrite action items into a spreadsheet, send recap emails, and manually check who responded.",
+                "desired_outcome": "reduce coordination overhead and make follow-up more reliable",
+                "task_volume_per_week": 22,
+                "manual_hours_per_week": 6.5,
+                "average_cycle_time_hours": 48,
+                "average_error_rate_pct": 15,
+            },
+            "actuals": {
+                "pilot_duration_weeks": 4,
+                "actual_manual_hours_per_week": 3.8,
+                "actual_cycle_time_hours": 30,
+                "actual_error_rate_pct": 8,
+                "actual_on_time_completion_pct": 96,
+                "adoption_rate_pct": 88,
+                "blockers": ["One edge-case approval remained manual."],
+                "notes": "The team adopted the pilot after week two and the standard note template reduced confusion.",
+            },
+        }
+
+        self.connection.request(
+            "POST",
+            "/api/review-pilot",
+            body=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        response = self.connection.getresponse()
+        result = json.loads(response.read().decode("utf-8"))
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(result["review"]["final_decision"], "Scale")
+        self.assertIn("markdown", result)
+
 
 if __name__ == "__main__":
     unittest.main()

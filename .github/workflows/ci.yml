@@ -42,7 +42,7 @@ jobs:
           PY
 
       - name: Compile sources
-        run: python -m compileall src tests run_demo.py run_server.py
+        run: python -m compileall src tests run_demo.py run_review_demo.py run_server.py
 
       - name: Run automated tests
         env:
@@ -54,3 +54,9 @@ jobs:
           PYTHONPATH: src
           OPS_PILOT_AGENT_MODE: deterministic
         run: python run_demo.py
+
+      - name: Run deterministic review demo
+        env:
+          PYTHONPATH: src
+          OPS_PILOT_AGENT_MODE: deterministic
+        run: python run_review_demo.py

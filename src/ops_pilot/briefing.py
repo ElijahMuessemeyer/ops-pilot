@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .models import PilotBrief
+from .models import PilotBrief, PostPilotReview
 
 
 def brief_to_markdown(brief: PilotBrief) -> str:
@@ -75,4 +75,70 @@ def brief_to_markdown(brief: PilotBrief) -> str:
 
 ## Next Steps
 {next_step_lines}
+"""
+
+
+def post_pilot_review_to_markdown(review: PostPilotReview) -> str:
+    kpi_lines = "\n".join(
+        f"- **{item.name}** [{item.status}] target: {item.target}; actual: {item.actual}; variance: {item.variance}"
+        for item in review.kpi_results
+    )
+    evidence_lines = "\n".join(
+        f"- `{item.source_name}`: {item.quote}" for item in review.evidence[:5]
+    )
+    risk_lines = "\n".join(f"- {item}" for item in review.risks_to_watch)
+    next_step_lines = "\n".join(f"- {item}" for item in review.next_steps)
+    assumption_lines = "\n".join(f"- {item}" for item in review.assumptions)
+
+    actual_hours_saved = (
+        f"{review.actual_hours_saved_per_week:.1f} hours/week"
+        if review.actual_hours_saved_per_week is not None
+        else "Not measured yet"
+    )
+    actual_annualized_savings = (
+        f"${review.actual_annualized_cost_savings:,.0f}"
+        if review.actual_annualized_cost_savings is not None
+        else "Not measured yet"
+    )
+    actual_cycle_reduction = (
+        f"{review.actual_cycle_time_reduction_pct:.0f}%"
+        if review.actual_cycle_time_reduction_pct is not None
+        else "Not measured yet"
+    )
+
+    return f"""# {review.title}
+
+## Executive Summary
+{review.executive_summary}
+
+## Final Decision
+- **Decision**: {review.final_decision}
+- **Rationale**: {review.decision_rationale}
+- **KPI attainment**: {review.kpi_attainment_pct:.0f}%
+
+## KPI Review
+{kpi_lines}
+
+## Planned vs Actual Value
+- **Projected weekly hours saved**: {review.projected_hours_saved_per_week:.1f} hours/week
+- **Actual weekly hours saved**: {actual_hours_saved}
+- **Projected annual cost savings**: ${review.projected_annual_cost_savings:,.0f}
+- **Actual annualized cost savings**: {actual_annualized_savings}
+- **Projected cycle-time reduction**: {review.projected_cycle_time_reduction_pct:.0f}%
+- **Actual cycle-time reduction**: {actual_cycle_reduction}
+
+## Evidence
+{evidence_lines}
+
+## Blockers
+{review.blocker_summary}
+
+## Risks To Watch
+{risk_lines}
+
+## Next Steps
+{next_step_lines}
+
+## Assumptions
+{assumption_lines}
 """

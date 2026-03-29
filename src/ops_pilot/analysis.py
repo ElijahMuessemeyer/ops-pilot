@@ -87,6 +87,28 @@ class InferredMetrics:
 
 
 @dataclass(slots=True)
+class KPITargets:
+    baseline_manual_hours_per_week: float
+    target_manual_hours_per_week: float
+    baseline_cycle_time_hours: float
+    target_cycle_time_hours: float
+    target_on_time_completion_pct: float
+    baseline_error_rate_pct: float
+    target_error_rate_pct: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "baseline_manual_hours_per_week": self.baseline_manual_hours_per_week,
+            "target_manual_hours_per_week": self.target_manual_hours_per_week,
+            "baseline_cycle_time_hours": self.baseline_cycle_time_hours,
+            "target_cycle_time_hours": self.target_cycle_time_hours,
+            "target_on_time_completion_pct": self.target_on_time_completion_pct,
+            "baseline_error_rate_pct": self.baseline_error_rate_pct,
+            "target_error_rate_pct": self.target_error_rate_pct,
+        }
+
+
+@dataclass(slots=True)
 class AnalysisSnapshot:
     metrics: InferredMetrics
     clarifying_questions: list[ClarifyingQuestion]
@@ -94,6 +116,7 @@ class AnalysisSnapshot:
     pain_points: list[PainPoint]
     opportunity_score: OpportunityScore
     roi_estimate: RoiEstimate
+    kpi_targets: KPITargets
     kpis: list[KPI]
     risks: list[RiskItem]
     rollout_steps: list[RolloutStep]
@@ -107,6 +130,7 @@ class AnalysisSnapshot:
             "pain_points": [item.to_dict() for item in self.pain_points],
             "opportunity_score": self.opportunity_score.to_dict(),
             "roi_estimate": self.roi_estimate.to_dict(),
+            "kpi_targets": self.kpi_targets.to_dict(),
             "kpis": [item.to_dict() for item in self.kpis],
             "risks": [item.to_dict() for item in self.risks],
             "rollout_steps": [item.to_dict() for item in self.rollout_steps],
@@ -126,7 +150,8 @@ def build_analysis_snapshot(case: WorkflowCase, retriever: SimpleRetriever) -> A
     pain_points = extract_pain_points(case, retriever)
     score = score_opportunity(case, metrics, pain_points)
     roi = estimate_roi(case, metrics, score)
-    kpis = build_kpis(case, metrics, roi)
+    kpi_targets = build_kpi_targets(metrics, roi)
+    kpis = build_kpis(kpi_targets)
     risks = build_risks(case)
     rollout_steps = build_rollout_steps(case)
     brief = build_brief(case, metrics, evidence, pain_points, score, roi, kpis, risks, rollout_steps)
@@ -137,6 +162,7 @@ def build_analysis_snapshot(case: WorkflowCase, retriever: SimpleRetriever) -> A
         pain_points=pain_points,
         opportunity_score=score,
         roi_estimate=roi,
+        kpi_targets=kpi_targets,
         kpis=kpis,
         risks=risks,
         rollout_steps=rollout_steps,
@@ -437,36 +463,40 @@ def estimate_roi(
     )
 
 
-def build_kpis(
-    case: WorkflowCase,
-    metrics: InferredMetrics,
-    roi: RoiEstimate,
-) -> list[KPI]:
-    cycle_baseline = metrics.average_cycle_time_hours or 48.0
-    on_time_target = "Reach 95% on-time completion for the pilot sample."
-    error_target = (
-        f"Reduce rework below {max((metrics.average_error_rate_pct or 12) * 0.7, 3):.0f}%."
+def build_kpi_targets(metrics: InferredMetrics, roi: RoiEstimate) -> KPITargets:
+    baseline_cycle_time = metrics.average_cycle_time_hours or 48.0
+    baseline_error_rate = metrics.average_error_rate_pct or 12.0
+    return KPITargets(
+        baseline_manual_hours_per_week=roi.baseline_hours_per_week,
+        target_manual_hours_per_week=max(roi.baseline_hours_per_week - roi.projected_hours_saved_per_week, 0),
+        baseline_cycle_time_hours=baseline_cycle_time,
+        target_cycle_time_hours=baseline_cycle_time * (1 - roi.projected_cycle_time_reduction_pct / 100),
+        target_on_time_completion_pct=95.0,
+        baseline_error_rate_pct=baseline_error_rate,
+        target_error_rate_pct=max(baseline_error_rate * 0.7, 3),
     )
 
+
+def build_kpis(targets: KPITargets) -> list[KPI]:
     return [
         KPI(
             name="Manual effort",
-            target=f"Reduce from {roi.baseline_hours_per_week:.1f} to {max(roi.baseline_hours_per_week - roi.projected_hours_saved_per_week, 0):.1f} hours/week.",
+            target=f"Reduce from {targets.baseline_manual_hours_per_week:.1f} to {targets.target_manual_hours_per_week:.1f} hours/week.",
             rationale="This is the clearest direct savings metric for a small-team pilot.",
         ),
         KPI(
             name="Turnaround time",
-            target=f"Cut average cycle time from {cycle_baseline:.0f} to {cycle_baseline * (1 - roi.projected_cycle_time_reduction_pct / 100):.0f} hours.",
+            target=f"Cut average cycle time from {targets.baseline_cycle_time_hours:.0f} to {targets.target_cycle_time_hours:.0f} hours.",
             rationale="Faster cycle time shows whether the pilot removes the slowest workflow steps.",
         ),
         KPI(
             name="On-time completion",
-            target=on_time_target,
+            target=f"Reach {targets.target_on_time_completion_pct:.0f}% on-time completion for the pilot sample.",
             rationale="The pilot should improve reliability, not just speed.",
         ),
         KPI(
             name="Quality / rework rate",
-            target=error_target,
+            target=f"Reduce rework below {targets.target_error_rate_pct:.0f}%.",
             rationale="Automation should reduce missed details and prevent extra follow-up work.",
         ),
     ]

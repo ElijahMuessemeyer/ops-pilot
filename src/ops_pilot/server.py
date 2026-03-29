@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .llm import LLMError
-from .models import SourceDocument, WorkflowCase
+from .models import PilotActuals, SourceDocument, WorkflowCase
 from .service import OpsPilotAgent
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -65,10 +65,16 @@ class OpsPilotRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
-        if parsed.path != "/api/analyze":
-            self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+        if parsed.path == "/api/analyze":
+            self._handle_analyze()
+            return
+        if parsed.path == "/api/review-pilot":
+            self._handle_review_pilot()
             return
 
+        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+    def _handle_analyze(self) -> None:
         content_length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(content_length)
         try:
@@ -85,6 +91,38 @@ class OpsPilotRequestHandler(BaseHTTPRequestHandler):
 
         try:
             response = self.agent.analyze(case)
+        except LLMError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_GATEWAY)
+            return
+        self._send_json(response.to_dict())
+
+    def _handle_review_pilot(self) -> None:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length)
+        try:
+            payload = json.loads(body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            self._send_json({"error": "Invalid JSON body."}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        workflow_payload = payload.get("workflow")
+        actuals_payload = payload.get("actuals")
+        if not isinstance(workflow_payload, dict) or not isinstance(actuals_payload, dict):
+            self._send_json(
+                {"error": "Provide both `workflow` and `actuals` objects."},
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+
+        try:
+            case = workflow_case_from_payload(workflow_payload)
+            actuals = pilot_actuals_from_payload(actuals_payload)
+        except ValueError as error:
+            self._send_json({"error": str(error)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        try:
+            response = self.agent.review_pilot(case, actuals)
         except LLMError as error:
             self._send_json({"error": str(error)}, status=HTTPStatus.BAD_GATEWAY)
             return
@@ -148,6 +186,39 @@ def workflow_case_from_payload(payload: dict) -> WorkflowCase:
         average_cycle_time_hours=_maybe_float(payload.get("average_cycle_time_hours")),
         average_error_rate_pct=_maybe_float(payload.get("average_error_rate_pct")),
         cost_per_hour=_maybe_float(payload.get("cost_per_hour")) or 25.0,
+        source_documents=source_documents,
+    )
+
+
+def pilot_actuals_from_payload(payload: dict) -> PilotActuals:
+    documents = payload.get("documents", [])
+    source_documents = [
+        SourceDocument(
+            name=str(document.get("name", "review-note.txt")),
+            kind="text",
+            content=str(document.get("content", "")),
+        )
+        for document in documents
+        if str(document.get("content", "")).strip()
+    ]
+
+    blockers = payload.get("blockers", [])
+    if blockers in ("", None):
+        blocker_list: list[str] = []
+    elif isinstance(blockers, list):
+        blocker_list = [str(item).strip() for item in blockers if str(item).strip()]
+    else:
+        blocker_list = [line.strip() for line in str(blockers).splitlines() if line.strip()]
+
+    return PilotActuals(
+        pilot_duration_weeks=_maybe_int(payload.get("pilot_duration_weeks")),
+        actual_manual_hours_per_week=_maybe_float(payload.get("actual_manual_hours_per_week")),
+        actual_cycle_time_hours=_maybe_float(payload.get("actual_cycle_time_hours")),
+        actual_error_rate_pct=_maybe_float(payload.get("actual_error_rate_pct")),
+        actual_on_time_completion_pct=_maybe_float(payload.get("actual_on_time_completion_pct")),
+        adoption_rate_pct=_maybe_float(payload.get("adoption_rate_pct")),
+        blockers=blocker_list,
+        notes=str(payload.get("notes", "")).strip(),
         source_documents=source_documents,
     )
 

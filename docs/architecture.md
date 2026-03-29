@@ -1,10 +1,11 @@
 # Architecture
 
-Ops Pilot is designed as a production-shaped planning agent instead of a raw chat demo. The core idea is simple: keep the business-case calculations deterministic, then let the LLM synthesize an executive-ready brief inside a constrained schema.
+Ops Pilot is designed as a production-shaped planning agent instead of a raw chat demo. The core idea is simple: keep the business-case calculations deterministic, then let the LLM synthesize executive-ready artifacts inside a constrained schema. The system now covers both pilot planning and post-pilot measurement.
 
 ## Goals
 
 - Turn messy workflow inputs into a pilot recommendation that a manager could actually review
+- Compare predicted KPI targets against measured pilot results after execution
 - Preserve transparent ROI, KPI, and risk logic even when the final narrative is LLM-written
 - Fail safely when an LLM provider is unavailable
 - Keep the system easy to test locally without external dependencies
@@ -16,13 +17,16 @@ flowchart LR
     A["User input<br/>form fields + uploaded docs"] --> B["Parsing<br/>text, markdown, csv, json"]
     B --> C["Chunking + retrieval<br/>evidence selection"]
     C --> D["Deterministic analysis<br/>metrics, pain points, scoring, ROI, KPIs, risks"]
-    D --> E{"LLM mode enabled<br/>and key configured?"}
-    E -- No --> F["Deterministic brief"]
-    E -- Yes --> G["OpenAI Responses API<br/>structured output schema"]
-    G --> H["Schema validation + merge"]
-    H --> I["Final pilot brief"]
-    F --> I
-    I --> J["UI + HTTP API response<br/>runtime metadata and warnings"]
+    D --> E["Pilot brief"]
+    E --> F["Post-pilot actuals<br/>hours, cycle time, rework, adoption, blockers"]
+    F --> G["Deterministic post-pilot review<br/>planned vs actual KPI evaluation"]
+    G --> H{"LLM mode enabled<br/>and key configured?"}
+    H -- No --> I["Deterministic artifact"]
+    H -- Yes --> J["OpenAI Responses API<br/>structured output schema"]
+    J --> K["Schema validation + merge"]
+    K --> L["Final brief or review"]
+    I --> L
+    L --> M["UI + HTTP API response<br/>runtime metadata and warnings"]
 ```
 
 ## Key Components
@@ -30,7 +34,7 @@ flowchart LR
 ## Intake and parsing
 
 - [parsing.py](../src/ops_pilot/parsing.py) handles `.txt`, `.md`, `.csv`, and `.json` inputs.
-- [models.py](../src/ops_pilot/models.py) defines the workflow case, evidence, ROI, KPI, risk, and runtime payloads.
+- [models.py](../src/ops_pilot/models.py) defines the workflow case, pilot actuals, evidence, ROI, KPI, review, and runtime payloads.
 
 ## Retrieval layer
 
@@ -49,6 +53,17 @@ flowchart LR
   - rollout plan generation
 
 This layer is the system of record for the business case. It is intentionally explicit and auditable.
+
+## Post-pilot measurement layer
+
+- [post_pilot.py](../src/ops_pilot/post_pilot.py) compares actual pilot results against the deterministic targets produced during planning.
+- It evaluates:
+  - manual effort realized vs projected
+  - cycle-time reduction realized vs projected
+  - quality/rework outcomes
+  - on-time completion
+  - adoption and blocker load
+- The output is a `Scale`, `Revise and extend pilot`, `Stop or redesign`, or `Extend measurement before scaling` decision.
 
 ## LLM synthesis layer
 
@@ -78,12 +93,14 @@ If the LLM fails in `auto` mode, the app falls back to deterministic planning an
 - [server.py](../src/ops_pilot/server.py) exposes:
   - `GET /api/health`
   - `POST /api/analyze`
+  - `POST /api/review-pilot`
 - The browser UI in [static/index.html](../src/ops_pilot/static/index.html) and [static/app.js](../src/ops_pilot/static/app.js) shows the selected pipeline and any runtime warnings.
 
 ## Production-minded decisions
 
 - Structured outputs instead of free-form generation
 - Deterministic guardrails for ROI and recommendation scoring
+- Deterministic post-pilot comparison so scale decisions stay tied to the original plan
 - Human-in-the-loop rollout recommendations instead of autonomous actions
 - Safe fallback path instead of hard dependency on a provider
 - Standard-library networking to keep the system portable and inspectable
