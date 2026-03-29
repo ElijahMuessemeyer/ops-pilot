@@ -56,10 +56,10 @@ cd ops-pilot
 ### 2. Configure the environment
 
 ```bash
-cp .env.example .env
+export OPENAI_API_KEY=your_key_here
 ```
 
-Set `OPENAI_API_KEY` if you want the live LLM path. If no key is present, the project still works in deterministic mode.
+Set `OPENAI_API_KEY` if you want the live LLM path. If no key is present, the project still works in deterministic mode. See `.env.example` for the full list of supported environment variables.
 
 ### 3. Run the app
 

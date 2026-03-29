@@ -155,13 +155,19 @@ def workflow_case_from_payload(payload: dict) -> WorkflowCase:
 def _maybe_int(value: object) -> int | None:
     if value in ("", None):
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _maybe_float(value: object) -> float | None:
     if value in ("", None):
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def main() -> None:
